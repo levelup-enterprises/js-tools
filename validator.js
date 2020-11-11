@@ -2,51 +2,65 @@
 // Desc: Handles validation for form data
 // Dependencies: jQuery < 2.1
 // Author: Tommy Wheeler
-// Version: 1.6
+// Version: 1.7
 // Created: 8/16/19
 
-/**
- *HOW IT WORKS
- *The validator is called during form submission and returns a value of FALSE if there are any non-valid entries.
- *First - the validator takes the provided form ID and checks if all required inputs are not empty, if they are empty it updates their placeholders.
- *Second - the validator checks if unique inputs are valid (phone, email, radio, signature).
- *             To validate without requiring, only add unique data attribute (data-email).
- *Third - if all pass then a value of TRUE is returned.
+/** -----------------
+ *# Validator
+ * ------------------
+ *? HOW IT WORKS
+ * The validator is called during form submission and returns a value of FALSE if there are
+ *  any non-valid entries.
  *
- * SETUP
- * Add dataText (data-required) to all empty fields that require validation.
- * For each type that requires unique validation add an additional data field (data-email, data-phone...).
- * Create a custom css tag for styling non-valid inputs (.not-valid is the default tag)
+ * Pass the submitting form element to validate only the supplied form.
+ * * The alternative is to have all forms validated (ideally an element
+ **     should always be passed).
  *
- * RADIO
- * Radio requires a wrapper (.required-radio is the default tag) be placed around the entire group that needs to be validated.
+ *  First - the validator takes the provided form ID and checks if all required inputs
+ *          are not empty, if they are empty it adds a span with the error.
+ *  Second - the validator checks if unique inputs are valid
+ *           (phone, email, radio, pattern, signature).
+ *           * To validate without requiring, only add unique data attribute (data-email).
+ *  Third - if all pass then a value of TRUE is returned.
  *
- * SIGNATURE
- * Signature requires a wrapper to be placed around the capture element.
+ *? SETUP
+ * Add dataText (custom attr) to all empty fields that require validation.
+ * For each type that requires unique validation add an additional data field
+ *  (data-email, data-phone...).
+ * * Create a custom css tag for styling non-valid inputs (.not-valid is the default tag)
  *
- * MODIFICATIONS
- * The validator is designed to be easily modified for different applications
+ *? RADIO
+ *  Radio requires a wrapper (.required-radio is the default tag) be placed around the entire
+ *   group that needs to be validated.
  *
- * @param {string} formID
+ *? Pattern
+ *  If a pattern attr is available the field will be tested against the regex value.
+ *
+ *? SIGNATURE
+ *  Signature requires a wrapper to be placed around the capture element.
+ *
+ *? MODIFICATIONS
+ *  The validator is designed to be easily modified for different applications
+ *
+ * @param {string} form
  */
-
-// Form ID is passed to validator
-function formValidate(formID = false) {
-  // Apply to specific form
-  formID ? (id = "#" + formID + " ") : (id = "");
+function formValidate(form = false) {
+  // If no form value passed
+  !form && (form = $("form"));
 
   // Input data attributes defaults
-  var dataText = id + "*[validate-required]", // For required inputs
-    dataPhone = id + "*[validate-phone]", // For required phone inputs
-    dataRadio = id + "*[validate-radio]", // For required radio inputs
-    dataSelect = id + "*[validate-select]", // For required select inputs
-    dataCheckbox = id + "*[validate-checkbox]", // For required checkbox input
-    dataEmail = id + "*[validate-email]", // For required email inputs
-    dataSign = id + "*[validate-signature]", // For required signature inputs
-    dataLength = id + "*[validate-length]", // Check for min length
-    customMessage = id + "*[validate-message]", // Check for custom message
+  var dataText = "data-parsley-error-message", // For required inputs
+    dataPhone = "validate-phone", // For required phone inputs
+    dataRadio = "validate-radio", // For required radio inputs
+    dataSelect = "validate-select", // For required select inputs
+    dataCheckbox = "validate-checkbox", // For required checkbox input
+    dataEmail = "validate-email", // For required email inputs
+    dataPattern = "data-parsley-pattern", // For required pattern match
+    dataSign = "validate-signature", // For required signature inputs
+    dataLength = "validate-length", // Check for min length
+    customMessage = "data-parsley-error-message", // Check for custom message
     // Identifier classes and wrappers
-    style = "not-valid", // Custom class for form errors
+    style = "validator-error-message", // Custom class for form errors
     radioWrapper = $(".required-radio"), // Radio group wrapper
     // Error display
     defaultText = " required",
@@ -54,56 +68,73 @@ function formValidate(formID = false) {
     defaultEmail = "Valid email address required",
     defaultRadio = "make a selection",
     defaultSelect = "make a selection",
+    defaultPattern = "Not a valid format",
     defaultSign = "Valid signature required",
     defaultMin = "Minimum length not met",
     defaultMax = "Maximum length exceeded",
     // Regex
-    phoneRegex = /^[\+]?[(]?[0-9]{3}[)]?[-\s\.]?[0-9]{3}[-\s\.]?[0-9]{4,6}$/im,
-    emailRegex = /^([a-zA-Z0-9_.+-])+\@(([a-zA-Z0-9-])+\.)+([a-zA-Z0-9]{2,4})+$/;
-
-  // Clear existing validation style
-  $("." + style).removeClass(style);
+    phoneRegex = new RegExp(
+      /^[\+]?[(]?[0-9]{3}[)]?[-\s\.]?[0-9]{3}[-\s\.]?[0-9]{4,6}$/im
+    ),
+    emailRegex = new RegExp(
+      /^([a-zA-Z0-9_.+-])+\@(([a-zA-Z0-9-])+\.)+([a-zA-Z0-9]{2,4})+$/
+    );
 
   // Clear existing alerts
   clearAlerts();
 
-  // Check for custom messages
-  // customMessage();
+  function validatePattern() {
+    const pattern = form.find("*[" + dataPattern + "]");
+    let verified = [];
+    pattern.each(function () {
+      if ($(this).val() !== "") {
+        const patternReg = new RegExp($(this).attr(dataPattern));
+        if (patternReg.test($(this).val()) === false) {
+          addAlert($(this), defaultPattern), $(this).focus();
+          return verified.push(false);
+        }
+        return verified.push(true);
+      }
+    });
+    return !verified.includes(false);
+  }
 
   function validatePhone() {
-    let phone = $(dataPhone);
-    if (phone.length > 0) {
-      if (phone.attr("data-required") !== undefined || phone.val() !== "") {
-        if (phoneRegex.test(phone.val()) === false) {
-          phone.val(""),
-            addAlert(phone.attr("id"), defaultPhone),
-            phone.focus();
-          return false;
+    var phone = form.find("*[" + dataPhone + "]");
+
+    let verified = [];
+    phone.each(function () {
+      if ($(this).val() !== "") {
+        if (phoneRegex.test($(this).val()) === false) {
+          addAlert($(this), defaultPhone);
+          return verified.push(false);
         }
-        return true;
+        return verified.push(true);
       }
-    }
+    });
+    return !verified.includes(false);
   }
 
   function validateEmail() {
-    let email = $(dataEmail);
-    if (email.length > 0) {
-      if (email.attr("data-required") !== undefined || email.val() !== "") {
-        if (emailRegex.test(email.val()) === false) {
-          email.val(""),
-            addAlert(email.attr("id"), defaultEmail),
-            email.focus();
-          return false;
+    var email = form.find("*[" + dataEmail + "]");
+
+    let verified = [];
+    email.each(function () {
+      if ($(this).val() !== "") {
+        if (emailRegex.test($(this).val()) === false) {
+          addAlert($(this), defaultEmail);
+          return verified.push(false);
         }
-        return true;
+        return verified.push(true);
       }
-    }
+    });
+    return !verified.includes(false);
   }
 
   function validateRadio() {
-    let radio = $(dataRadio);
+    var radio = form.find("*[" + dataRadio + "]");
     if (radio.length > 0) {
-      let group = radio.attr("name"),
+      var group = radio.attr("name"),
         checked = $("input:radio[name=" + group + "]:checked").val();
       if (checked === undefined) {
         addAlert(radio.attr("name"), defaultRadio), radioWrapper.focus();
@@ -114,7 +145,9 @@ function formValidate(formID = false) {
   }
 
   function validateSelect() {
-    let select = $(dataSelect);
+    dataText;
+    var select = form.find("select[" + dataText + "]");
+    // var select = form.find("*[" + dataSelect + "]");
     if (select.val() === "") {
       addAlert(select.attr("id"), defaultSelect), select.focus();
       return false;
@@ -124,7 +157,7 @@ function formValidate(formID = false) {
   }
 
   function validateCheckbox() {
-    var box = $(dataCheckbox);
+    var box = form.find("*[" + dataCheckbox + "]");
 
     if (box.length > 0) {
       var group = box.attr("name"),
@@ -141,7 +174,7 @@ function formValidate(formID = false) {
   }
 
   function validateSign() {
-    let sign = $(dataSign);
+    var sign = form.find("*[" + dataSign + "]");
     if (sign.length > 0) {
       if (sign.val() === "") {
         addAlert(sign.attr("id"), defaultSign), sign.focus();
@@ -152,7 +185,7 @@ function formValidate(formID = false) {
   }
 
   function validateLength() {
-    let min = $(minLength);
+    var min = $(minLength);
     if (min.length < min.attr("validate-min-length")) {
       min.val(""), addAlert(min.attr("id"), defaultMin), min.focus();
       return false;
@@ -163,49 +196,25 @@ function formValidate(formID = false) {
 
   function clearAlerts() {
     try {
-      $(".validator-holder").remove();
+      form.find("." + style).remove();
     } catch (e) {
       console.log(e);
     }
   }
 
-  function customMessage() {
-    if (customMessage) {
-      dataText.attr("validate-message") &&
-        (defaultText = dataText.attr("validate-message"));
-      dataEmail.attr("validate-message") &&
-        (defaultEmail = dataEmail.attr("validate-message"));
-      dataPhone.attr("validate-message") &&
-        (defaultPhone = dataPhone.attr("validate-message"));
-      dataRadio.attr("validate-message") &&
-        (defaultRadio = dataRadio.attr("validate-message"));
-      dataSelect.attr("validate-message") &&
-        (defaultSelect = dataSelect.attr("validate-message"));
-      dataSign.attr("validate-message") &&
-        (defaultSign = dataSign.attr("validate-message"));
-      minLength.attr("validate-message") &&
-        (defaultMin = minLength.attr("validate-message"));
-      maxLength.attr("validate-message") &&
-        (defaultMax = maxLength.attr("validate-message"));
-    }
-  }
-
-  function addAlert(field) {
-    var message =
-      arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : null; // Check if jquery of js
-
-    typeof field === "string" ? (field = field) : (field = field.id); // Get label and append validator holder
-
+  function addAlert(field, text = null) {
+    field instanceof jQuery && (field = field.get(0));
     try {
-      var label = $("label[for='" + field + "']");
-      message === null && (message = defaultText);
-      label.after(
-        "<span class='validator-holder " +
-          style +
-          "'>&nbsp; " +
-          message +
-          "</span>"
-      );
+      if (field.id !== "") {
+        var message = $("#" + field.id).attr(customMessage) || defaultText;
+        var label = form.find("label[for='" + field.id + "']");
+      } else {
+        var message =
+          $("[name='" + field.name + "']").attr(customMessage) || defaultText;
+        var label = form.find("[name='" + field.name + "']");
+      }
+      text && (message = text);
+      label.after("<span class='" + style + "'>" + message + "</span>");
     } catch (e) {
       console.log(e);
     }
@@ -222,17 +231,18 @@ function formValidate(formID = false) {
     return isIE;
   }
 
-  const fields = $(dataText);
+  var fields = form.find("*[" + dataText + "]");
 
   //  Validate all data-required fields
   try {
     var validate = function (fields) {
-      let valid = {
+      var valid = {
           empty: true,
           email: true,
           phone: true,
           radio: true,
           select: true,
+          pattern: true,
           box: true,
           sign: true,
           min: true,
@@ -249,9 +259,10 @@ function formValidate(formID = false) {
       valid.empty && (valid.email = validateEmail());
       valid.empty && (valid.radio = validateRadio());
       valid.empty && (valid.select = validateSelect());
+      valid.empty && (valid.pattern = validatePattern());
       valid.empty && (valid.box = validateCheckbox());
       valid.empty && (valid.sign = validateSign());
-      valid.empty && (valid.min = validateMinLength());
+      // valid.empty && (valid.min = validateMinLength());
       return valid;
     };
   } catch (e) {
