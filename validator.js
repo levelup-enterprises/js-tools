@@ -3,7 +3,7 @@ $(function () {
   // Desc: Handles validation for form data
   // Dependencies: jQuery < 2.1
   // Author: Tommy Wheeler
-  // Version: 1.7
+  // Version: 1.9
   // Created: 8/16/19
 
   /** -----------------
@@ -50,7 +50,7 @@ $(function () {
     !form && (form = $("form"));
 
     // Input data attributes defaults
-    var dataText = "data-parsley-error-message", // For required inputs
+    var dataText = "validate", // For required inputs
       dataPhone = "validate-phone", // For required phone inputs
       dataRadio = "validate-radio", // For required radio inputs
       dataSelect = "validate-select", // For required select inputs
@@ -84,50 +84,53 @@ $(function () {
     // Clear existing alerts
     clearAlerts();
 
-    function validatePattern() {
+    function validatePattern(value = null) {
       var pattern = form.find("*[" + dataPattern + "]");
+      value !== null && (pattern = form.find(value));
+
       if (pattern.length > 0) {
         if (pattern.val() !== "") {
           var patternReg = new RegExp(pattern.attr(dataPattern));
           if (patternReg.test(pattern.val()) === false) {
-            pattern.val("");
             var text = pattern.attr(customMessage)
               ? pattern.attr(customMessage)
               : defaultPattern;
             addAlert(pattern.attr("id"), text), pattern.focus();
             return false;
           }
-          return true;
         }
       }
+      return true;
     }
 
-    function validatePhone() {
+    function validatePhone(value = null) {
       var phone = form.find("*[type='tel'][ " + dataText + "]");
+      value !== null && (phone = form.find(value));
+
       if (phone.length > 0) {
         if (phone.val() !== "") {
           if (phoneRegex.test(phone.val()) === false) {
-            // phone.val(""),
             addAlert(phone.attr("id"), defaultPhone), phone.focus();
             return false;
           }
-          return true;
         }
       }
+      return true;
     }
 
-    function validateEmail() {
+    function validateEmail(value = null) {
       var email = form.find("*[type='email'][ " + dataText + "]");
+      value !== null && (email = form.find(value));
+
       if (email.length > 0) {
         if (email.val() !== "") {
           if (emailRegex.test(email.val()) === false) {
-            // email.val(""),
             addAlert(email.attr("id"), defaultEmail), email.focus();
             return false;
           }
-          return true;
         }
       }
+      return true;
     }
 
     function validateRadio() {
@@ -139,18 +142,23 @@ $(function () {
           addAlert(radio.attr("name"), defaultRadio), radioWrapper.focus();
           return false;
         }
-        return true;
       }
+      return true;
     }
 
     function validateSelect() {
-      var select = form.find("*[" + dataSelect + "]");
-      if (select.val() === "") {
-        addAlert(select.attr("id"), defaultSelect), select.focus();
-        return false;
-      } else {
-        return true;
+      var select = form.find("select[ " + dataText + "]");
+
+      if (select.length > 0) {
+        if (select.val() === "") {
+          var text = select.attr(customMessage)
+            ? select.attr(customMessage)
+            : defaultSelect;
+          addAlert(select.attr("id"), text), select.focus();
+          return false;
+        }
       }
+      return true;
     }
 
     function validateCheckbox() {
@@ -165,9 +173,8 @@ $(function () {
           addAlert(box.attr("name")), box.focus();
           return false;
         }
-
-        return true;
       }
+      return true;
     }
 
     function validateSign() {
@@ -177,8 +184,8 @@ $(function () {
           addAlert(sign.attr("id"), defaultSign), sign.focus();
           return false;
         }
-        return true;
       }
+      return true;
     }
 
     function validateLength() {
@@ -199,27 +206,6 @@ $(function () {
       }
     }
 
-    function customMessage() {
-      if (customMessage) {
-        dataText.attr(customMessageTxt) &&
-          (defaultText = dataText.attr(customMessageTxt));
-        dataEmail.attr(customMessageTxt) &&
-          (defaultEmail = dataEmail.attr(customMessageTxt));
-        dataPhone.attr(customMessageTxt) &&
-          (defaultPhone = dataPhone.attr(customMessageTxt));
-        dataRadio.attr(customMessageTxt) &&
-          (defaultRadio = dataRadio.attr(customMessageTxt));
-        dataSelect.attr(customMessageTxt) &&
-          (defaultSelect = dataSelect.attr(customMessageTxt));
-        dataSign.attr(customMessageTxt) &&
-          (defaultSign = dataSign.attr(customMessageTxt));
-        minLength.attr(customMessageTxt) &&
-          (defaultMin = minLength.attr(customMessageTxt));
-        maxLength.attr(customMessageTxt) &&
-          (defaultMax = maxLength.attr(customMessageTxt));
-      }
-    }
-
     function addAlert(field) {
       var message =
         arguments.length > 1 && arguments[1] !== undefined
@@ -232,7 +218,6 @@ $(function () {
 
       try {
         var label = form.find("label[for='" + field + "']");
-        // message === null && (message = defaultText);
         label.after("<span class='" + style + "'>" + message + "</span>");
       } catch (e) {
         console.log(e);
@@ -268,19 +253,33 @@ $(function () {
           },
           focus = [];
 
-        for (var i = 0; i < fields.length; i++) {
-          fields[i].value === "" &&
-            (focus.push(fields[i]), addAlert(fields[i]), fields[i].focus());
-        }
+        // Cycle through each field
+        fields.each(function (i, field) {
+          field.value === "" &&
+            (focus.push(field), addAlert(field), field.focus());
+          if (field.value !== "") {
+            switch (field.type) {
+              case "tel":
+                valid.phone = validatePhone();
+                break;
+              case "email":
+                valid.email = validateEmail();
+                break;
+              case "text":
+                field.hasAttribute(dataPattern) &&
+                  (valid.pattern = validatePattern(field));
+                break;
+              default:
+                return;
+            }
+          }
+        });
 
         focus.length !== 0 && (focus[0].focus(), (valid.empty = false));
-        valid.empty && (valid.phone = validatePhone());
-        valid.empty && (valid.email = validateEmail());
-        valid.empty && (valid.radio = validateRadio());
-        valid.empty && (valid.select = validateSelect());
-        valid.empty && (valid.pattern = validatePattern());
-        valid.empty && (valid.box = validateCheckbox());
-        valid.empty && (valid.sign = validateSign());
+        valid.radio = validateRadio();
+        valid.select = validateSelect();
+        valid.box = validateCheckbox();
+        valid.sign = validateSign();
         // valid.empty && (valid.min = validateMinLength());
         return valid;
       };
