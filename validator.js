@@ -47,9 +47,8 @@ $(function () {
    */
 
   jQuery.fn.extend({
-    formValidate: function (form = false) {
-      // If no form value passed
-      !form && (form = $("form"));
+    formValidate: function () {
+      var form = this !== undefined ? (form = this) : (form = $("form"));
 
       // Input data attributes defaults
       var dataText = "validate", // For required inputs
